@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title></title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: #fff;
+    color: #000;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    max-width: 60ch;
+  }
+  canvas.dither {
+    width: 220px;
+    height: 220px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    display: block;
+    background: #fff;
+  }
+  p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.6;
+    text-align: left;
+    width: 100%;
+  }
+  .contacts {
+    display: flex;
+    gap: 20px;
+  }
+  .contacts a {
+    display: inline-flex;
+    color: #9a9a9a;
+    transition: color 120ms ease, transform 120ms ease;
+  }
+  .contacts a:hover {
+    color: #000;
+    transform: translateY(-2px);
+  }
+  .contacts svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<div class="stack">
+  <canvas class="dither" width="110" height="110"></canvas>
+  <p>I've seen what it <em>actually</em> takes to build successful teams and procuts at Big Tech (Google) and Scale Ups. If you're struggling with AI Option, Head of Eng hiring or coaching emerging leaders, we shoudl talk</p>
+  <div class="contacts">
+    <a href="mailto:hello@example.com" aria-label="Email">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="20" height="16" x="2" y="4" rx="2"/>
+        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+      </svg>
+    </a>
+    <a href="https://wa.me/61439113869" aria-label="WhatsApp">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.358.101 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.582 0 11.945-5.358 11.949-11.893a11.821 11.821 0 0 0-3.495-8.411z"/>
+      </svg>
+    </a>
+  </div>
+</div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+  const canvas = document.querySelector('canvas.dither');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
+  renderer.setPixelRatio(1);
+  renderer.setSize(110, 110, false);
+  renderer.setClearColor(0xffffff, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+  camera.position.z = 2;
+
+  // Bayer 4x4 ordered-dither matrix → packed as a 4x4 single-channel texture
+  const m = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+  const bayerData = new Uint8Array(m.map(v => Math.round((v / 16) * 255)));
+  const bayerTex = new THREE.DataTexture(bayerData, 4, 4, THREE.RedFormat, THREE.UnsignedByteType);
+  bayerTex.wrapS = bayerTex.wrapT = THREE.RepeatWrapping;
+  bayerTex.magFilter = THREE.NearestFilter;
+  bayerTex.minFilter = THREE.NearestFilter;
+  bayerTex.needsUpdate = true;
+
+  const material = new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: {
+      uLightDir: { value: new THREE.Vector3(0.55, 0.55, 0.7).normalize() },
+      uBayer:    { value: bayerTex }
+    },
+    vertexShader: `
+      out vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      in vec3 vNormal;
+      out vec4 outColor;
+      uniform vec3 uLightDir;
+      uniform sampler2D uBayer;
+
+      void main() {
+        vec3 n = normalize(vNormal);
+        vec3 l = normalize(uLightDir);
+        float d = max(0.0, dot(n, l));
+        // Lambert + soft specular highlight
+        float intensity = 0.03 + 0.90 * d + pow(d, 18.0) * 0.55;
+        intensity = clamp(intensity, 0.0, 1.0);
+
+        ivec2 px = ivec2(mod(gl_FragCoord.xy, 4.0));
+        float t = texelFetch(uBayer, px, 0).r;
+        float v = intensity > t ? 1.0 : 0.0;
+        outColor = vec4(vec3(v), 1.0);
+      }
+    `
+  });
+
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.95, 64, 64), material);
+  scene.add(sphere);
+
+  // Smoothed light direction follows cursor
+  const target  = new THREE.Vector3(0.55, 0.55, 0.7).normalize();
+  const current = target.clone();
+
+  function updateTarget(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const cx = rect.left + rect.width  / 2;
+    const cy = rect.top  + rect.height / 2;
+    // offsets in units of half-canvas (cursor over centre → 0,0)
+    const dx =  (clientX - cx) / (rect.width  / 2);
+    const dy = -(clientY - cy) / (rect.height / 2);
+    // z keeps the light in front so dot(n,l) stays meaningful even far away
+    target.set(dx, dy, 0.7).normalize();
+  }
+
+  window.addEventListener('mousemove', (e) => updateTarget(e.clientX, e.clientY), { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches[0]) updateTarget(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+
+  function loop() {
+    current.lerp(target, 0.20).normalize();
+    material.uniforms.uLightDir.value.copy(current);
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+
+</body>
+</html>
