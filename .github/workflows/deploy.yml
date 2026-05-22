@@ -23,6 +23,7 @@ jobs:
         run: |
           mkdir -p dist
           cp index.html dist/
+          cp t9.zip dist/
           touch dist/.nojekyll
 
       - name: Publish to publish branch
